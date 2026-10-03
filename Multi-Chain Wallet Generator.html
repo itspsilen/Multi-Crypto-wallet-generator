@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multi-Chain Wallet Generator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#e8edef;--panel:#f7f9fa;--ink:#13232a;--mute:#5b6b72;--line:#c5d0d5;--acc:#3b3fc4;--acc-ink:#fff;--warn-bg:#fff1d6;--warn-ink:#6a4300;--btc:#c26a00;--evm:#3b3fc4;--sol:#0b8f6a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10191d;--panel:#18262c;--ink:#e6eef1;--mute:#93a5ad;--line:#2b3d45;--acc:#8e92ff;--acc-ink:#10191d;--warn-bg:#3a2b0d;--warn-ink:#ffd78a;--btc:#ffa940;--evm:#8e92ff;--sol:#3ddba9}}
+:root[data-theme="dark"]{--bg:#10191d;--panel:#18262c;--ink:#e6eef1;--mute:#93a5ad;--line:#2b3d45;--acc:#8e92ff;--acc-ink:#10191d;--warn-bg:#3a2b0d;--warn-ink:#ffd78a;--btc:#ffa940;--evm:#8e92ff;--sol:#3ddba9}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Bricolage Grotesque",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:28px 18px 56px}
+h1{font-size:clamp(1.9rem,6vw,2.8rem);line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 20px;max-width:56ch}
+.warn{background:var(--warn-bg);color:var(--warn-ink);padding:12px 14px;border-radius:8px;font-size:.92rem;margin-bottom:20px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:18px}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--mute);flex:1 1 140px}
+select,input,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%}
+textarea{font-family:"IBM Plex Mono",monospace;font-size:.9rem;resize:vertical;min-height:70px}
+button{font:inherit;font-weight:700;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px}
+button.primary{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.words{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px;margin:12px 0 0;padding:0;list-style:none;counter-reset:w}
+.words li{counter-increment:w;font-family:"IBM Plex Mono",monospace;font-size:.85rem;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+.words li::before{content:counter(w) " ";color:var(--mute)}
+.chain{border-left:6px solid var(--c);padding-left:14px}
+.chain h2{margin:0;font-size:1.25rem}
+.path{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--mute);margin:2px 0 10px}
+.field{display:flex;gap:8px;align-items:center;margin-top:8px}
+.field b{flex:0 0 74px;font-size:.82rem;color:var(--mute);font-weight:500}
+.val{flex:1;min-width:0;font-family:"IBM Plex Mono",monospace;font-size:.82rem;overflow-wrap:anywhere;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.val.hidden{filter:blur(6px);user-select:none}
+.field button{padding:5px 10px;font-size:.8rem;font-weight:500}
+#status{color:var(--mute);font-size:.9rem;min-height:1.4em}
+.err{color:#c0392b}
+@media (max-width:520px){.field{flex-wrap:wrap}.field b{flex-basis:100%}}
+</style>
+</head>
+<body>
+<main>
+<h1>Multi-chain wallet generator</h1>
+<p class="sub">One recovery phrase, addresses for Bitcoin, Ethereum and EVM chains, and Solana. Everything is computed in your browser.</p>
+<div class="warn">Anyone with your recovery phrase or private keys controls the funds. Use this for learning and testing. For serious holdings, generate keys offline on a device you trust, or use a hardware wallet.</div>
+
+<section class="panel">
+<div class="row">
+<label>Phrase length<select id="len"><option value="128">12 words</option><option value="256">24 words</option></select></label>
+<label>Account index<input id="acct" type="number" min="0" max="1000" value="0"></label>
+<label>Passphrase (optional)<input id="pass" type="password" autocomplete="off" placeholder="BIP39 passphrase"></label>
+</div>
+<div class="row" style="margin-top:12px">
+<button class="primary" id="gen">Generate new wallet</button>
+<button id="imp">Use my own phrase</button>
+</div>
+<div id="importBox" hidden style="margin-top:12px">
+<label>Recovery phrase<textarea id="phrase" spellcheck="false" autocomplete="off" placeholder="Enter 12 or 24 words separated by spaces"></textarea></label>
+<button class="primary" id="load" style="margin-top:8px">Derive addresses</button>
+</div>
+<p id="status" role="status">Loading libraries…</p>
+</section>
+
+<section id="out" hidden>
+<div class="panel">
+<div class="row" style="justify-content:space-between;align-items:center">
+<strong>Recovery phrase</strong>
+<span><button id="togWords">Hide</button> <button id="copyWords">Copy</button></span>
+</div>
+<ol class="words" id="words"></ol>
+</div>
+<div id="chains"></div>
+</section>
+</main>
+
+<script type="module" onerror="document.getElementById('status').innerHTML='<span class=err>Could not load the crypto libraries. Check your connection and reload.</span>'">
+import {generateMnemonic,mnemonicToSeedSync,validateMnemonic} from "https://cdn.jsdelivr.net/npm/@scure/bip39@1.5.4/+esm";
+import {wordlist} from "https://cdn.jsdelivr.net/npm/@scure/bip39@1.5.4/wordlists/english/+esm";
+import {HDKey} from "https://cdn.jsdelivr.net/npm/@scure/bip32@1.6.2/+esm";
+import {secp256k1} from "https://cdn.jsdelivr.net/npm/@noble/curves@1.8.1/secp256k1/+esm";
+import {ed25519} from "https://cdn.jsdelivr.net/npm/@noble/curves@1.8.1/ed25519/+esm";
+import {keccak_256} from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.7.1/sha3/+esm";
+import {sha256} from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.7.1/sha256/+esm";
+import {ripemd160} from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.7.1/ripemd160/+esm";
+import {sha512} from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.7.1/sha512/+esm";
+import {hmac} from "https://cdn.jsdelivr.net/npm/@noble/hashes@1.7.1/hmac/+esm";
+import {base58,bech32,createBase58check} from "https://cdn.jsdelivr.net/npm/@scure/base@1.2.4/+esm";
+
+const $=id=>document.getElementById(id);
+const hex=b=>Array.from(b,x=>x.toString(16).padStart(2,"0")).join("");
+const b58check=createBase58check(sha256);
+const enc=new TextEncoder();
+
+function evm(root,i){
+  const path=`m/44'/60'/0'/0/${i}`,k=root.derive(path);
+  const pub=secp256k1.ProjectivePoint.fromHex(k.publicKey).toRawBytes(false).slice(1);
+  const a=hex(keccak_256(pub).slice(-20)),h=hex(keccak_256(enc.encode(a)));
+  const address="0x"+[...a].map((c,n)=>parseInt(h[n],16)>=8?c.toUpperCase():c).join("");
+  return {name:"Ethereum + EVM",note:"Also works on Base, Arbitrum, Polygon, BNB Chain and other EVM chains",color:"--evm",path,address,key:"0x"+hex(k.privateKey),keyLabel:"Private key"};
+}
+function btc(root,i){
+  const path=`m/84'/0'/0'/0/${i}`,k=root.derive(path);
+  const h160=ripemd160(sha256(k.publicKey));
+  const address=bech32.encode("bc",[0,...bech32.toWords(h160)]);
+  const wif=b58check.encode(new Uint8Array([0x80,...k.privateKey,0x01]));
+  return {name:"Bitcoin",note:"Native SegWit (bech32, starts with bc1q)",color:"--btc",path,address,key:wif,keyLabel:"WIF key"};
+}
+function sol(seed,i){
+  // SLIP-0010 ed25519, all levels hardened
+  let I=hmac(sha512,enc.encode("ed25519 seed"),seed),key=I.slice(0,32),chain=I.slice(32);
+  for(const idx of [44,501,i,0]){
+    const d=new Uint8Array(37);d[0]=0;d.set(key,1);
+    new DataView(d.buffer).setUint32(33,(idx|0x80000000)>>>0,false);
+    I=hmac(sha512,chain,d);key=I.slice(0,32);chain=I.slice(32);
+  }
+  const pub=ed25519.getPublicKey(key);
+  return {name:"Solana",note:"Same path as Phantom and Solflare. Key is the 64-byte keypair in base58",color:"--sol",path:`m/44'/501'/${i}'/0'`,address:base58.encode(pub),key:base58.encode(new Uint8Array([...key,...pub])),keyLabel:"Private key"};
+}
+
+function field(label,value,hidden){
+  const f=document.createElement("div");f.className="field";
+  const b=document.createElement("b");b.textContent=label;
+  const v=document.createElement("div");v.className="val"+(hidden?" hidden":"");v.textContent=value;
+  f.append(b,v);
+  if(hidden){const s=document.createElement("button");s.textContent="Show";s.onclick=()=>{const h=v.classList.toggle("hidden");s.textContent=h?"Show":"Hide"};f.append(s)}
+  const c=document.createElement("button");c.textContent="Copy";
+  c.onclick=async()=>{try{await navigator.clipboard.writeText(value);c.textContent="Copied";setTimeout(()=>c.textContent="Copy",1200)}catch{c.textContent="Select text"}};
+  f.append(c);return f;
+}
+
+let phraseText="";
+function render(mnemonic){
+  const pass=$("pass").value,acct=Math.max(0,Math.min(1000,parseInt($("acct").value)||0));
+  const seed=mnemonicToSeedSync(mnemonic,pass),root=HDKey.fromMasterSeed(seed);
+  phraseText=mnemonic;
+  $("words").replaceChildren(...mnemonic.split(" ").map(w=>{const li=document.createElement("li");li.textContent=w;return li}));
+  const box=$("chains");box.replaceChildren();
+  for(const c of [evm(root,acct),btc(root,acct),sol(seed,acct)]){
+    const s=document.createElement("div");s.className="panel chain";s.style.setProperty("--c",`var(${c.color})`);
+    const h=document.createElement("h2");h.textContent=c.name;
+    const p=document.createElement("div");p.className="path";p.textContent=c.path+" · "+c.note;
+    s.append(h,p,field("Address",c.address,false),field(c.keyLabel,c.key,true));
+    box.append(s);
+  }
+  $("out").hidden=false;$("status").textContent="Done. Back up the phrase somewhere offline before using any address.";
+}
+
+$("gen").onclick=()=>{try{render(generateMnemonic(wordlist,parseInt($("len").value)))}catch(e){$("status").innerHTML='<span class="err">'+e.message+"</span>"}};
+$("imp").onclick=()=>{$("importBox").hidden=!$("importBox").hidden};
+$("load").onclick=()=>{
+  const m=$("phrase").value.trim().toLowerCase().split(/\s+/).join(" ");
+  if(!validateMnemonic(m,wordlist)){$("status").innerHTML='<span class="err">That phrase is not valid. Check for typos and make sure it has 12 or 24 words.</span>';return}
+  try{render(m)}catch(e){$("status").innerHTML='<span class="err">'+e.message+"</span>"}
+};
+$("copyWords").onclick=async e=>{try{await navigator.clipboard.writeText(phraseText);e.target.textContent="Copied";setTimeout(()=>e.target.textContent="Copy",1200)}catch{}};
+$("togWords").onclick=e=>{const w=$("words");w.hidden=!w.hidden;e.target.textContent=w.hidden?"Show":"Hide"};
+$("status").textContent="Ready. Generate a new wallet or use your own phrase.";
+</script>
+</body>
+</html>
